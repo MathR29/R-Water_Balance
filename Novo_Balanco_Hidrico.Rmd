@@ -222,7 +222,7 @@ balanco_hidrico_soja <- function(df_balanco_hidrico,dia_da_emergencia,ciclo,cad)
   df_balanco_hidrico <- df_balanco_hidrico%>% 
       mutate(etc = ET0_HS * kc,
              p_etc = rain - etc) %>% 
-    select(-c(arm,nac,def,etr,ET0_HS,exc,alt,p_etp))
+    select(-c(arm,nac,def,etr,exc,alt,p_etp))
   
   
    for (i in 1:nrow(df_balanco_hidrico)) { ##For loop para calcular a ETC
@@ -257,10 +257,28 @@ balanco_hidrico_soja <- function(df_balanco_hidrico,dia_da_emergencia,ciclo,cad)
      }
    }
   
-  return(df_balanco_hidrico)
+  return(df_balanco_hidrico %>% 
+           mutate(alt = c(0, diff(arm)),
+                  etr = case_when(p_etc < 0 ~ rain + abs(alt),
+                                  p_etc >= 0 ~ etc),
+                  def = ET0_HS - etc,
+                  exc = case_when(arm < cad ~ 0,
+                                  arm == cad ~ p_etc - alt)) )
 }
   
 ```
+
+dados_climaticos %>%   
+           mutate(
+                  alt = c(0, diff(arm)),
+                  etr = case_when(p_etp < 0 ~ rain + abs(alt),
+                                  p_etp >= 0 ~ ET0_HS),
+                  def = ET0_HS - etr,
+                  exc = case_when(arm < cad ~ 0,
+                                  arm == cad ~ p_etp - alt)
+           )
+
+
 
 
 ```{r}
@@ -272,4 +290,5 @@ bh_2024_2025
 bh_soja<-balanco_hidrico_soja(bh_2024_2025,ciclo = 130,dia_da_emergencia = "2024-10-01",cad = 70 )
 bh_soja
 ```
+
 
