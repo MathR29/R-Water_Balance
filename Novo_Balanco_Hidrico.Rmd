@@ -268,19 +268,6 @@ balanco_hidrico_soja <- function(df_balanco_hidrico,dia_da_emergencia,ciclo,cad)
   
 ```
 
-dados_climaticos %>%   
-           mutate(
-                  alt = c(0, diff(arm)),
-                  etr = case_when(p_etp < 0 ~ rain + abs(alt),
-                                  p_etp >= 0 ~ ET0_HS),
-                  def = ET0_HS - etr,
-                  exc = case_when(arm < cad ~ 0,
-                                  arm == cad ~ p_etp - alt)
-           )
-
-
-
-
 ```{r}
 bh_2024_2025 <-balanco_hidrico(-22.323510,-52.403209,"2024-01-01","2025-03-28",70)
 bh_2024_2025
