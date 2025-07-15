@@ -1,0 +1,37 @@
+---
+title: ''
+output: html_document
+date: "2025-07-15"
+---
+
+```{r}
+source("water_balance_funtions.R")
+source("kc_soybean.R")
+```
+
+```{r}
+bh_2024_2025 <-balanco_hidrico(-24.136102,-51.587440,"2024-01-01","2025-03-31",90)
+bh_2024_2025
+```
+
+
+```{r}
+bh_soja<-balanco_hidrico_soja(bh_2024_2025,ciclo = 130,dia_da_emergencia = "2024-10-01" )
+bh_soja 
+
+```
+
+
+```{r}
+g_exc_def(bh_2024_2025)
+g_rain_etp_etr(bh_2024_2025,"sequencial")
+g_cad_arm(bh_2024_2025)
+```
+
+
+
+```{r}
+g_exc_def(bh_soja)
+g_rain_etp_etr(bh_soja,"cultura")
+g_cad_arm(bh_soja)
+```

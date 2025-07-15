@@ -1,0 +1,285 @@
+---
+title: "Untitled"
+author: "Rosini"
+date: "2024-06-17"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(nasapower)
+```
+
+
+
+```{r}
+weather_raw <- get_power(
+  pars = c("T2M","T2M_MAX","T2M_MIN","PRECTOTCORR","ALLSKY_SFC_SW_DWN","RH2M"),
+  community = "AG",
+  temporal_api = "daily",
+  lonlat = c(-52.403209,-22.323510),
+  dates = c("1994-01-01","2023-12-31")) %>% 
+  select(-c(MM,DD,DOY)) %>% 
+  select(YYYYMMDD,LAT,LON,everything()) %>% 
+  rename(date = YYYYMMDD,
+         latitude = LAT,
+         longitude = LON,
+         tmean = T2M,
+         tmax = T2M_MAX,
+         tmin = T2M_MIN,
+         rain = PRECTOTCORR,
+         srad = ALLSKY_SFC_SW_DWN,
+         rh = RH2M
+         ) 
+  
+```
+
+```{r}
+Z <- 20 #cm depth
+cad <- 0.6 * Z
+weather <- weather_raw %>% 
+  mutate(doy = yday(date),
+         es =  0.6108 * exp((17.27*tmean) / (tmean+237.3)),
+         ea = es *(rh / 100),
+         VPD = es - ea,
+         lat_rad = latitude*0.0174533,
+         dr = 1 + 0.033*cos((2*pi/365)*doy),
+         Sd = 0.409*sin((2*pi/365)*doy - 1.39),
+         ws = acos(-tan(lat_rad)*tan(Sd)),
+         Ra = (24*60)/(pi) * 0.0820 * dr * (ws*sin(lat_rad)*sin(Sd)+ cos(lat_rad)*sin(ws)),
+         ET0_HS = 0.0135 * 0.17  * (Ra / 2.45) * (sqrt(tmax-tmin)) * (tmean + 17.8),
+         `P-ET0` = rain - ET0_HS,
+         month = month(date)
+         
+                         )
+
+weather_seq<-weather %>% 
+  group_by(month,YEAR) %>% 
+  summarise(rain = sum(rain),
+            etp = sum(ET0_HS),
+            p_etp = rain - etp) %>% 
+  arrange(YEAR,month) %>% 
+  mutate(cad = 100,
+         nac = 0,
+         arm = as.numeric(NA),
+         ) %>% group_by(month) %>% 
+   summarise(rain = mean(rain),
+            etp = mean(etp),
+            p_etp = rain - etp,
+            cad = 100) %>%  ungroup()
+```
+
+```{r}
+weather_seq 
+
+
+bh_seq <- function(weather,p_etp_col, cad_col, precipitation_col, etp_col){
+  colnames(weather)[which(names(weather) == p_etp_col)] <- "p_etp"
+  colnames(weather)[which(names(weather) == cad_col)] <- "cad"
+  colnames(weather)[which(names(weather) == precipitation_col)] <- "rain"
+  colnames(weather)[which(names(weather) == etp_col)] <- "etp"
+   for (i in 1:nrow(weather)) {
+     if (i == 1){
+        if (weather$p_etp[i] < 0) {
+          
+          weather$nac[i] <- (weather$p_etp[i])
+          weather$arm[i] <- weather$cad[i] * exp((weather$nac[i]) / weather$cad[i])
+        }
+       if (weather$p_etp[i] >= 0){
+         weather$arm[i] <- weather$cad[i] + weather$p_etp[i]
+         weather$nac[i] <- weather$cad[i] * log(weather$arm[i] / weather$cad[i])
+       }
+     }
+     if (i != 1){
+       if (weather$p_etp[i] < 0) {
+          
+          weather$nac[i] <- (weather$p_etp[i] + weather$nac[i-1])
+          
+          weather$arm[i] <- weather$cad[i] * exp((weather$nac[i]) / weather$cad[i])
+       }
+       if (weather$p_etp[i] >= 0){
+         weather$arm[i] <- weather$arm[i-1] + weather$p_etp[i]
+         weather$nac[i] <- weather$cad[i] * log(weather$arm[i] / weather$cad[i])
+       }
+     }
+     if (weather$nac[i] >= 0){
+       weather$nac[i] <- 0
+     }
+     if (weather$arm[i] > 100){
+       weather$arm[i] <- 100
+     }
+     }
+   
+    
+   
+  
+  return(weather %>% mutate(arm = round(arm,2),
+                            nac = round(nac,2),
+                            alt = c(0, diff(arm)),
+                            etr = case_when(p_etp < 0 ~ rain + abs(alt),
+                                            p_etp >= 0 ~ etp),
+                            def = etp - etr,
+                            exc = case_when(arm < cad ~ 0,
+                                            arm == cad ~ p_etp - alt)))
+}
+
+x<-bh_seq(weather_seq, p_etp_col = "p_etp" ,cad_col = "cad",precipitation_col = "rain",etp_col = "etp")
+x
+```
+
+
+```{r}
+x %>% 
+  mutate(data = as.Date(paste(YEAR, month, "01", sep = "-"))) %>% 
+  arrange(data) %>% 
+  filter(YEAR>=2018) %>% 
+  ggplot()+
+  geom_line(aes(x = data,
+                y = cad,
+                group = 1
+                ),
+            color="blue4")+
+  geom_line(aes(x = data,
+                y = arm,
+                group = 1
+               ),
+            color="red4")+
+  theme_bw()
+  
+```
+
+```{r}
+weather <- get_power( pars = c("T2M_MAX","T2M_MIN","PRECTOTCORR"),
+  community = "AG",
+  temporal_api = "daily",
+  lonlat = c(-51.93,-23.42),
+  dates = c("2015-01-01","2023-12-31")) 
+
+CAD<- 78
+```
+
+```{r}
+bh <- function(type,lon,lat,start_date,end_date,CAD){
+  weather <- get_power( pars = c("T2M_MAX","T2M_MIN","PRECTOTCORR"),
+  community = "AG",
+  temporal_api = "daily",
+  lonlat = c(lon,lat),
+  dates = c(start_date,end_date)) 
+  
+  if (type == "seq"){
+     monthly_data <- weather %>%
+    rename(tmax = T2M_MAX,
+           tmin = T2M_MIN,
+           rain = PRECTOTCORR) %>% 
+    mutate(tmean = (tmax + tmin)/2,
+           tadj = pmax(tmean,0)) %>% 
+    group_by(YEAR,MM,LAT,LON) %>% 
+    summarise(tmean = mean(tadj,
+                           na.rm = T),
+              rain = sum(rain,
+                         na.rm = T)) %>% 
+    ungroup() %>% 
+    left_join(weather %>% group_by(YEAR,MM,LON,LAT) %>% 
+                summarise(total_days = max(DD),.groups = 'drop'),by=c("YEAR","MM","LON","LAT")) %>% 
+    group_by(YEAR) %>% 
+    mutate(NDA = 0,
+           I = (tmean / 5)^1.514,
+           I_sum = sum(I),
+           a = 0.000000675 * I_sum^3 - 0.0000771 * I_sum^2 + 0.01792 * I_sum + 0.49239,
+           NDA =c(1, cumsum(total_days)[-length(total_days)]),
+           d = 23.45 * sin((360/365) * (NDA - 81) * pi / 180),
+           hn = acos(-tan((LAT)* pi / 180)*tan((d)* pi / 180))*180/ pi,
+           N = 2*hn/15,
+           etp = 16 * ((10 * tmean / I_sum)^a)*( N/12)*( total_days/30),
+           p_etp = rain - etp,
+           cad = CAD,
+           nac = 0,
+           arm = as.numeric(NA)) %>% 
+    ungroup()
+  }
+  
+  if (type == "cli"){
+     monthly_data <- weather %>%
+    rename(tmax = T2M_MAX,
+           tmin = T2M_MIN,
+           rain = PRECTOTCORR) %>% 
+    mutate(tmean = (tmax + tmin)/2,
+           tadj = pmax(tmean,0)) %>% 
+    group_by(YEAR,MM,LAT,LON) %>% 
+    summarise(tmean = mean(tadj,
+                           na.rm = T),
+              rain = sum(rain,
+                         na.rm = T)) %>% 
+    group_by(MM,LAT,LON) %>% 
+    summarise(tmean = mean(tmean,
+                           na.rm = T),
+              rain = mean(rain,
+                         na.rm = T)) %>%
+    left_join(weather %>% group_by(MM,LON,LAT) %>% 
+                summarise(total_days = max(DD),.groups = 'drop'),by=c("MM","LON","LAT")) %>% 
+    mutate(NDA = 0,
+           I = (tmean / 5)^1.514,
+           I_sum = sum(I),
+           a = 0.000000675 * I_sum^3 - 0.0000771 * I_sum^2 + 0.01792 * I_sum + 0.49239,
+           NDA =c(1, cumsum(total_days)[-length(total_days)]),
+           d = 23.45 * sin((360/365) * (NDA - 81) * pi / 180),
+           hn = acos(-tan((LAT)* pi / 180)*tan((d)* pi / 180))*180/ pi,
+           N = 2*hn/15,
+           etp = 16 * ((10 * tmean / I_sum)^a)*( N/12)*( total_days/30),
+           p_etp = rain - etp,
+           cad = CAD,
+           nac = 0,
+           arm = as.numeric(NA)) %>% 
+    ungroup()
+  }
+    
+   for (i in 1:nrow(monthly_data)) {
+     if (i == 1){
+        if (monthly_data$p_etp[i] < 0) {
+          
+          monthly_data$nac[i] <- (monthly_data$p_etp[i])
+          monthly_data$arm[i] <- monthly_data$cad[i] * exp((monthly_data$nac[i]) / monthly_data$cad[i])
+        }
+       if (monthly_data$p_etp[i] >= 0){
+         monthly_data$arm[i] <- monthly_data$cad[i] + monthly_data$p_etp[i]
+         monthly_data$nac[i] <- monthly_data$cad[i] * log(monthly_data$arm[i] / monthly_data$cad[i])
+       }
+     }
+     if (i != 1){
+       if (monthly_data$p_etp[i] < 0) {
+          
+          monthly_data$nac[i] <- (monthly_data$p_etp[i] + monthly_data$nac[i-1])
+          
+          monthly_data$arm[i] <- monthly_data$cad[i] * exp((monthly_data$nac[i]) / monthly_data$cad[i])
+       }
+       if (monthly_data$p_etp[i] >= 0){
+         monthly_data$arm[i] <- monthly_data$arm[i-1] + monthly_data$p_etp[i]
+         monthly_data$nac[i] <- monthly_data$cad[i] * log(monthly_data$arm[i] / monthly_data$cad[i])
+       }
+     }
+     if (monthly_data$nac[i] >= 0){
+       monthly_data$nac[i] <- 0
+     }
+     if (monthly_data$arm[i] > CAD){
+       monthly_data$arm[i] <- CAD
+     }
+     }
+   
+    
+   
+  
+  return(monthly_data %>% mutate(arm = round(arm,2),
+                            nac = round(nac,2),
+                            alt = c(0, diff(arm)),
+                            etr = case_when(p_etp < 0 ~ rain + abs(alt),
+                                            p_etp >= 0 ~ etp),
+                            def = etp - etr,
+                            exc = case_when(arm < cad ~ 0,
+                                            arm == cad ~ p_etp - alt)))
+}
+```
+
+```{r}
+x <- bh(type = "seq",lon = -51.93,lat = -23.42,start_date = "2000-01-01",end_date = "2023-12-31",CAD = 78) 
+```
+
