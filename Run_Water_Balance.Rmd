@@ -10,13 +10,13 @@ source("kc_soybean.R")
 ```
 
 ```{r}
-bh_2024_2025 <-balanco_hidrico(-24.136102,-51.587440,"2024-01-01","2025-03-31",90)
+bh_2024_2025 <-balanco_hidrico(-24.136102,-51.587440,"2024-01-01","2025-03-31",50)
 bh_2024_2025
 ```
 
 
 ```{r}
-bh_soja<-balanco_hidrico_soja(bh_2024_2025,ciclo = 130,dia_da_emergencia = "2024-10-01" )
+bh_soja<-balanco_hidrico_soja(bh_2024_2025,ciclo = 120,dia_da_emergencia = "2024-10-01" )
 bh_soja 
 
 ```
