@@ -1,3 +1,5 @@
+library(dplyr)
+
 #Segundo universidade de Ohio
 # Tmin milho == 10 graus (50F)
 # Tmax milho == 30 graus (86F)
@@ -19,9 +21,9 @@ corn_degree_day <- function(x){
   return(x)
 }
 
-corn_degree_day <- function(x,max_gd,emerg_day){
+corn_degree_day <- function(x,max_gd,planting_date){
   for(i in 1:nrow(x)){
-    if(x$date[i] < as.Date(emerg_day)){
+    if(x$date[i] < as.Date(planting_date)){
       x$degree_day[i] <- as.numeric(0.00)
     }else{
       if(x$degree_day[i-1] < max_gd ){
@@ -31,13 +33,27 @@ corn_degree_day <- function(x,max_gd,emerg_day){
       }
     }
   }
+  x <- x %>% mutate(stage = case_when(degree_day < 100 ~ "-",
+                                 degree_day < 346 ~ "VE",
+                                 degree_day < 592 ~ "V3",
+                                 degree_day < 838 ~ "V6",
+                                 degree_day < 1020 ~ "V9",
+                                 degree_day < 1170 ~ "V12",
+                                 degree_day < 1370 ~ "V15",
+                                 degree_day < 1420 ~ "V19",
+                                 degree_day < 1686 ~ "VT",
+                                 degree_day < 1830 ~ "R2",
+                                 degree_day < 1981 ~ "R3",
+                                 degree_day < 2324 ~ "R4",
+                                 degree_day < 2650 ~ "R5",
+                                 TRUE ~ "R6"))
   return(x)
 }
 
 
 test <-bh_2024_2025 %>% 
   select(date,tmax,tmin) %>% 
-  corn_degree_day(emerg_day = "2024-10-01",2400)
+  corn_degree_day(planting_date = "2024-10-01",2650)
 
 
 

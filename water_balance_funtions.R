@@ -4,7 +4,7 @@ library(nasapower)
 
 
 ## Criação da função para calculo do BH diário ##
-balanco_hidrico <- function(lat,lon,data_inicio,data_final,cad){ 
+balanco_hidrico_unico <- function(lat,lon,data_inicio,data_final,cad){ 
   dados_climaticos <- get_power(
     pars = c("T2M","T2M_MAX","T2M_MIN","PRECTOTCORR"),
     community = "AG",
@@ -79,7 +79,7 @@ balanco_hidrico <- function(lat,lon,data_inicio,data_final,cad){
 }
 
 ## #Criação da função para calculo do BH diário para cultura da soja ##
-balanco_hidrico_soja <- function(df_balanco_hidrico,dia_da_emergencia,ciclo){
+balanco_hidrico_soja_unico <- function(df_balanco_hidrico,dia_da_emergencia,ciclo){
   if (ciclo == 110){
     for (i in 1:nrow(df_balanco_hidrico)) { 
       
@@ -167,6 +167,38 @@ balanco_hidrico_soja <- function(df_balanco_hidrico,dia_da_emergencia,ciclo){
                   `etr/etc` = etr/etc))
 }
 
+
+
+
+
+balanco_hidrico <- function(path_to_csv,data_inicio,data_final,cad){
+  df <- data.frame()
+  df_cidades <- read.csv(path_to_csv)
+  for (i in 1:nrow(df_cidades)){
+    df_temp <-balanco_hidrico_unico(lat = df_cidades$lat[i],
+                                    lon = df_cidades$long[i],
+                                    data_inicio = data_inicio,
+                                    data_final = data_final,
+                                    cad = cad) %>% 
+      mutate(cidade = df_cidades$cidades[i],
+             .before = longitude)
+    df <- bind_rows(df,df_temp)
+  }
+  return(df)
+}
+
+balanco_hidrico_soja <- function(path_to_csv,df_balanco_hidrico,dia_da_emergencia,ciclo){
+  df <- data.frame()
+  df_cidades <- read.csv(path_to_csv)
+  for (i in 1:nrow(df_cidades)){
+    df_temp <- df_balanco_hidrico %>% filter(cidade == df_cidades$cidades[i])
+    df_soja_temp <- balanco_hidrico_soja_unico(df_temp,dia_da_emergencia,ciclo)
+    df <- bind_rows(df,df_soja_temp)
+  }
+  return(df)
+}
+
+
 ## Criando funçoes para gerar os graficos ##
 # Excesso e defict
 g_exc_def <- function(df){
@@ -181,6 +213,7 @@ g_exc_def <- function(df){
     scale_x_date(date_breaks = "1 week", date_labels = "%d/%m") +
     labs(x = "Mês", y = "mm", title = "Extrato do Balaço Hídrico Mensal Normal") +
     scale_color_manual(name = "", values = c("exc" = "blue", "def" = "red")) +
+    facet_wrap(~cidade)+
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           plot.title = element_text(hjust = 0.5))
@@ -200,6 +233,7 @@ g_rain_etp_etr <- function(df,tipo_bh){
       labs(x = "Mês", y = "mm", title = "Balaço Hídrico Normal Mensal") +
       scale_x_date(date_breaks = "1 week", date_labels = "%d/%m")+
       scale_color_manual(name = "", values = c("rain" = "blue", "etp" = "red","etr" = "green" )) +
+      facet_wrap(~cidade)+
       theme_bw() +
       theme(axis.text.x = element_text(angle = 45, hjust = 1),
             plot.title = element_text(hjust = 0.5))
@@ -216,6 +250,7 @@ g_rain_etp_etr <- function(df,tipo_bh){
       scale_x_date(date_breaks = "1 week", date_labels = "%d/%m")+
       labs(x = "Mês", y = "mm", title = "Balaço Hídrico Normal Mensal") +
       scale_color_manual(name = "", values = c("rain" = "blue", "etc" = "red","etr" = "green" )) +
+      facet_wrap(~cidade)+
       theme_bw() +
       theme(axis.text.x = element_text(angle = 45, hjust = 1),
             plot.title = element_text(hjust = 0.5))
@@ -234,6 +269,7 @@ g_cad_arm <- function(df){
     labs(x = "Mês", y = "mm", title = "Capacidade de Armazenamento (CAD) e Armazenamento (Arm) mensal ") +
     scale_x_date(date_breaks = "1 week", date_labels = "%d/%m") +
     scale_color_manual(name = "", values = c("cad" = "blue", "arm" = "red")) +
+    facet_wrap(~cidade)+
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           plot.title = element_text(hjust = 0.5))
