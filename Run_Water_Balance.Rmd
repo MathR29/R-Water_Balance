@@ -5,20 +5,24 @@ date: "2025-07-15"
 ---
 
 ```{r}
-source("water_balance_funtions.R")
+source("water_balance_functions.R")
 source("kc_soybean.R")
 ```
 
 ```{r}
-bh_2024_2025 <-balanco_hidrico("cidades.csv","2024-01-01","2025-03-28",50)
+bh_2024_2025 <-balanco_hidrico(path = "cidades.csv",data_inicio = "2024-01-01",data_final = "2025-03-30")
 bh_2024_2025
 ```
 
 
 ```{r}
-bh_soja<-balanco_hidrico_soja("cidades.csv",bh_2024_2025,ciclo = 120,dia_da_emergencia = "2024-10-01" )
-bh_soja %>% group_split(cidade)
+bh_soja <-balanco_hidrico_soja(path = "cidades.csv",
+                               data_inicio = "2024-01-01",
+                               data_final = "2025-03-30",
+                               data_emergencia = "2024-10-01",
+                               ciclo = 120)
 
+bh_soja
 ```
 
 
