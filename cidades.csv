@@ -1,6 +1,6 @@
-cidades,lat,long
-Cascavel,-24.9558,-53.4553
-Tibagi,-24.5153,-50.4122
-Guarapuava,-25.39,-51.46
-Ponta Grossa,-25.091,-50.162
-Maringá,-23.421,-51.9331
+cidades,cad,lat,long
+Cascavel,70,-24.9558,-53.4553
+Tibagi,50,-24.5153,-50.4122
+Guarapuava,50,-25.39,-51.46
+Ponta Grossa,70,-25.091,-50.162
+Maringá,50,-23.421,-51.9331
